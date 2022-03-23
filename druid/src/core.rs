@@ -243,6 +243,11 @@ impl<T, W: Widget<T>> WidgetPod<T, W> {
         self.state.id
     }
 
+    /// This widget or any of its children has requested layout
+    pub fn layout_requested(&self) -> bool {
+        self.state.needs_layout
+    }
+
     /// Set the layout [`Rect`].
     ///
     /// This is soft-deprecated; you should use [`set_origin`] instead for new code.
@@ -849,7 +854,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                     // Submit the SCROLL_TO notification if it was used from a update or lifecycle
                     // call.
                     let rect = cmd.get_unchecked(SCROLL_TO_VIEW);
-                    inner_ctx.submit_notification(SCROLL_TO_VIEW.with(*rect));
+                    inner_ctx.submit_notification_without_warning(SCROLL_TO_VIEW.with(*rect));
                     ctx.is_handled = true;
                 }
                 _ => {

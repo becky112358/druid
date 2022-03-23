@@ -20,3 +20,11 @@ cfg_if::cfg_if! {
         pub use keyboard::*;
     }
 }
+cfg_if::cfg_if! {
+    if #[cfg(all(target_os = "linux", any(feature = "x11", feature = "wayland")))] {
+        mod timer;
+        pub(crate) use timer::*;
+        pub(crate) mod xkb;
+        pub(crate) mod linux;
+    }
+}

@@ -35,11 +35,30 @@ pub use x11::*;
 #[cfg(all(feature = "x11", any(target_os = "linux", target_os = "openbsd")))]
 pub(crate) mod shared;
 
-#[cfg(all(not(feature = "x11"), any(target_os = "linux", target_os = "openbsd")))]
+#[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "openbsd")))]
+mod wayland;
+#[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "openbsd")))]
+pub use wayland::*;
+#[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "openbsd")))]
+pub(crate) mod shared;
+
+#[cfg(all(
+    not(feature = "x11"),
+    not(feature = "wayland"),
+    any(target_os = "linux", target_os = "openbsd")
+))]
 mod gtk;
-#[cfg(all(not(feature = "x11"), any(target_os = "linux", target_os = "openbsd")))]
+#[cfg(all(
+    not(feature = "x11"),
+    not(feature = "wayland"),
+    any(target_os = "linux", target_os = "openbsd")
+))]
 pub use self::gtk::*;
-#[cfg(all(not(feature = "x11"), any(target_os = "linux", target_os = "openbsd")))]
+#[cfg(all(
+    not(feature = "x11"),
+    not(feature = "wayland"),
+    any(target_os = "linux", target_os = "openbsd")
+))]
 pub(crate) mod shared;
 
 #[cfg(target_arch = "wasm32")]

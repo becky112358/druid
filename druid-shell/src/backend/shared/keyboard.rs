@@ -18,7 +18,10 @@
 use keyboard_types::{Code, Location};
 
 #[cfg(any(
-    all(feature = "x11", any(target_os = "linux", target_os = "openbsd")),
+    all(
+        any(feature = "x11", feature = "wayland"),
+        any(target_os = "linux", target_os = "openbsd")
+    ),
     target_os = "macos"
 ))]
 /// Map key code to location.

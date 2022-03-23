@@ -14,19 +14,23 @@
 
 //! A minimal wrapper around Xkb for our use.
 
-use super::keycodes;
-use super::xkbcommon_sys::*;
+mod keycodes;
+mod xkbcommon_sys;
 use crate::{
     backend::shared::{code_to_location, hardware_keycode_to_code},
     KeyEvent, KeyState, Modifiers,
 };
 use keyboard_types::{Code, Key};
 use std::convert::TryFrom;
-use std::os::raw::{c_char, c_int};
+use std::os::raw::c_char;
 use std::ptr;
+use xkbcommon_sys::*;
+
+#[cfg(feature = "x11")]
 use x11rb::xcb_ffi::XCBConnection;
 
-pub struct DeviceId(c_int);
+#[cfg(feature = "x11")]
+pub struct DeviceId(std::os::raw::c_int);
 
 /// A global xkb context object.
 ///
@@ -42,6 +46,7 @@ impl Context {
         unsafe { Self(xkb_context_new(XKB_CONTEXT_NO_FLAGS)) }
     }
 
+    #[cfg(feature = "x11")]
     pub fn core_keyboard_device_id(&self, conn: &XCBConnection) -> Option<DeviceId> {
         let id = unsafe {
             xkb_x11_get_core_keyboard_device_id(
@@ -55,6 +60,7 @@ impl Context {
         }
     }
 
+    #[cfg(feature = "x11")]
     pub fn keymap_from_device(&self, conn: &XCBConnection, device: DeviceId) -> Option<Keymap> {
         let key_map = unsafe {
             xkb_x11_keymap_new_from_device(
@@ -70,10 +76,35 @@ impl Context {
         Some(Keymap(key_map))
     }
 
+    /// Create a keymap from some given data.
+    ///
+    /// Uses `xkb_keymap_new_from_buffer` under the hood.
+    #[cfg(feature = "wayland")]
+    pub fn keymap_from_slice(&self, buffer: &[u8]) -> Keymap {
+        // TODO we hope that the keymap doesn't borrow the underlying data. If it does' we need to
+        // use Rc. We'll find out soon enough if we get a segfault.
+        // TODO we hope that the keymap inc's the reference count of the context.
+        assert!(
+            buffer.iter().copied().any(|byte| byte == 0),
+            "`keymap_from_slice` expects a null-terminated string"
+        );
+        unsafe {
+            let keymap = xkb_keymap_new_from_string(
+                self.0,
+                buffer.as_ptr() as *const i8,
+                XKB_KEYMAP_FORMAT_TEXT_V1,
+                XKB_KEYMAP_COMPILE_NO_FLAGS,
+            );
+            assert!(!keymap.is_null());
+            Keymap(keymap)
+        }
+    }
+
     /// Set the log level using `tracing` levels.
     ///
     /// Because `xkb` has a `critical` error, each rust error maps to 1 above (e.g. error ->
     /// critical, warn -> error etc.)
+    #[allow(unused)]
     pub fn set_log_level(&self, level: tracing::Level) {
         use tracing::Level;
         let level = match level {
@@ -160,7 +191,7 @@ impl State {
         }
     }
 
-    pub fn key_event(&mut self, scancode: u32, state: KeyState) -> KeyEvent {
+    pub fn key_event(&mut self, scancode: u32, state: KeyState, repeat: bool) -> KeyEvent {
         let code = u16::try_from(scancode)
             .map(hardware_keycode_to_code)
             .unwrap_or(Code::Unidentified);
@@ -168,21 +199,22 @@ impl State {
         // TODO this is lazy - really should use xkb i.e. augment the get_logical_key method.
         let location = code_to_location(code);
 
-        let repeat = false;
         // TODO not sure how to get this
         let is_composing = false;
 
         let mut mods = Modifiers::empty();
         // Update xkb's state (e.g. return capitals if we've pressed shift)
         unsafe {
-            xkb_state_update_key(
-                self.state,
-                scancode,
-                match state {
-                    KeyState::Down => XKB_KEY_DOWN,
-                    KeyState::Up => XKB_KEY_UP,
-                },
-            );
+            if !repeat {
+                xkb_state_update_key(
+                    self.state,
+                    scancode,
+                    match state {
+                        KeyState::Down => XKB_KEY_DOWN,
+                        KeyState::Up => XKB_KEY_UP,
+                    },
+                );
+            }
             // compiler will unroll this loop
             // FIXME(msrv): remove .iter().cloned() when msrv is >= 1.53
             for (idx, mod_) in [
