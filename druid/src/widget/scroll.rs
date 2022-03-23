@@ -261,7 +261,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for Scroll<T, W> {
                 .reset_scrollbar_fade(|d| ctx.request_timer(d), env);
         }
 
-       if ((self.scroll_snap_vertical)(data, env) || (self.scroll_snap_horizontal)(data, env))
+        if ((self.scroll_snap_vertical)(data, env) || (self.scroll_snap_horizontal)(data, env))
             && self.clip.viewport().content_size != old_content_size
         {
             let viewport = self.clip.viewport();

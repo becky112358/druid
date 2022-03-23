@@ -71,6 +71,7 @@ You can find its changes [documented below](#070---2021-01-01).
 - `EventCtx::submit_notification_without_warning` ([#2141] by [@xarvic])
 - `WidgetPod::requested_layout` ([#2145] by [@xarvic])
 - Make `Parse` work better with floats and similar types ([#2148] by [@superfell])
+- `Scroll` widget: add the ability to snap the view to the most recent input ([#1798] by [@becky112358])
 
 ### Changed
 
@@ -539,6 +540,7 @@ Last release without a changelog :(
 [@r-ml]: https://github.com/r-ml
 [@djeedai]: https://github.com/djeedai
 [@bjorn]: https://github.com/bjorn
+<<<<<<< HEAD
 [@DrGabble]: https://github.com/DrGabble
 [@lisael]: https://github.com/lisael
 [@jenra-uwu]: https://github.com/jenra-uwu
@@ -550,6 +552,9 @@ Last release without a changelog :(
 [@maurerdietmar]: https://github.com/maurerdietmar
 [@superfell]: https://github.com/superfell
 [@GoldsteinE]: https://github.com/GoldsteinE
+=======
+[@becky112358]: https://github.com/becky112358
+>>>>>>> aaf638a807ebe31d5faa857b66d8ccbcd2dd89cd
 
 [#599]: https://github.com/linebender/druid/pull/599
 [#611]: https://github.com/linebender/druid/pull/611
@@ -795,6 +800,7 @@ Last release without a changelog :(
 [#1772]: https://github.com/linebender/druid/pull/1772
 [#1779]: https://github.com/linebender/druid/pull/1779
 [#1787]: https://github.com/linebender/druid/pull/1787
+<<<<<<< HEAD
 [#1801]: https://github.com/linebender/druid/pull/1801
 [#1802]: https://github.com/linebender/druid/pull/1802
 [#1803]: https://github.com/linebender/druid/pull/1803
@@ -840,6 +846,9 @@ Last release without a changelog :(
 [#2145]: https://github.com/linebender/druid/pull/2145
 [#2148]: https://github.com/linebender/druid/pull/2148
 [#2151]: https://github.com/linebender/druid/pull/2151
+=======
+[#1798]: https://github.com/linebender/druid/pull/1798
+>>>>>>> aaf638a807ebe31d5faa857b66d8ccbcd2dd89cd
 
 [Unreleased]: https://github.com/linebender/druid/compare/v0.7.0...master
 [0.7.0]: https://github.com/linebender/druid/compare/v0.6.0...v0.7.0
