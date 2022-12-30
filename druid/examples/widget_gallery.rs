@@ -145,7 +145,7 @@ fn ui_builder() -> impl Widget<AppData> {
                 "Painter",
             ))
             .with_child(label_widget(
-                RadioGroup::new(vec![
+                RadioGroup::column(vec![
                     ("radio gaga", MyRadio::GaGa),
                     ("radio gugu", MyRadio::GuGu),
                     ("radio baabaa", MyRadio::BaaBaa),
@@ -344,7 +344,7 @@ impl<T: Data> Widget<T> for SquaresGrid<T> {
 
             // Constrain the height
             let height = ideal_height.max(bc.min().height).min(bc.max().height);
-            // Now calcuate how many rows we can actually fit in
+            // Now calculate how many rows we can actually fit in
             while height_from_rows(rows) > height && rows > 0 {
                 rows -= 1;
             }
@@ -369,7 +369,7 @@ impl<T: Data> Widget<T> for SquaresGrid<T> {
                 data,
                 env,
             );
-            widget.set_origin(ctx, data, env, Point::new(x_position, y_position));
+            widget.set_origin(ctx, Point::new(x_position, y_position));
             // Increment position for the next cell
             x_position += self.cell_size.width + self.spacing;
             // If we can't fit in another cell in this row ...

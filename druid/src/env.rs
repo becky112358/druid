@@ -87,7 +87,7 @@ struct EnvImpl {
 ///
 /// [`ValueType`]: trait.ValueType.html
 /// [`Env`]: struct.Env.html
-#[derive(Clone, Debug, PartialEq, Data)]
+#[derive(Clone, Debug, PartialEq, Eq, Data)]
 pub struct Key<T> {
     key: &'static str,
     value_type: PhantomData<T>,
@@ -120,7 +120,7 @@ pub enum Value {
 ///
 /// [`Key<T>`]: struct.Key.html
 /// [`Env`]: struct.Env.html
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum KeyOrValue<T> {
     /// A concrete [`Value`] of type `T`.
     ///
@@ -255,7 +255,7 @@ impl Env {
         }
     }
 
-    /// Trys to get a value from the environment.
+    /// Tries to get a value from the environment.
     ///
     /// If the value is not found, the raw key is returned as the error.
     ///
@@ -370,7 +370,7 @@ impl Env {
     #[doc(hidden)]
     pub fn get_debug_color(&self, id: u64) -> Color {
         let color_num = id as usize % DEBUG_COLOR.len();
-        DEBUG_COLOR[color_num].clone()
+        DEBUG_COLOR[color_num]
     }
 }
 

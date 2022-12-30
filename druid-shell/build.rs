@@ -7,13 +7,14 @@ fn main() {
     use std::env;
     use std::path::PathBuf;
 
-    if env::var("CARGO_CFG_TARGET_OS").unwrap() != "linux"
+    if env::var("CARGO_CFG_TARGET_OS").unwrap() != "freebsd"
+        && env::var("CARGO_CFG_TARGET_OS").unwrap() != "linux"
         && env::var("CARGO_CFG_TARGET_OS").unwrap() != "openbsd"
     {
         return;
     }
 
-    probe_library("xkbcommon").unwrap();
+    let xkbcommon = probe_library("xkbcommon").unwrap();
 
     #[cfg(feature = "x11")]
     probe_library("xkbcommon-x11").unwrap();
@@ -33,6 +34,12 @@ fn main() {
         // The input header we would like to generate
         // bindings for.
         .header_contents("wrapper.h", &header)
+        .clang_args(
+            xkbcommon
+                .include_paths
+                .iter()
+                .filter_map(|path| path.to_str().map(|s| format!("-I{}", s))),
+        )
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
@@ -47,7 +54,6 @@ fn main() {
         // we use FILE from libc
         .blocklist_type("FILE")
         .blocklist_type("va_list")
-        .blocklist_type("_.*")
         .generate()
         .expect("Unable to generate bindings");
 

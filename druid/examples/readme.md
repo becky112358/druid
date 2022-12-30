@@ -15,7 +15,7 @@ This example shows how to make a simple animation using `Event::AnimFrame`.
 ```
 cargo run --example async_event
 ```
-Demonstrates receiving data from some outside source, and updating the UI in response. This is similar to [blocking function](#Blocking Function) but here the data source is fully independent, and runs for the lifetime of the program.
+Demonstrates receiving data from some outside source, and updating the UI in response. This is similar to [blocking function](#blocking-function) but here the data source is fully independent, and runs for the lifetime of the program.
 
 ## Blocking Function
 ```
@@ -24,7 +24,7 @@ cargo run --example blocking_function
 Sometimes you need to fetch some data from disk or from the internet,
 but you should never block the UI thread with long running operations!
 Instead you should run this task in a separate thread, and have it send
-you the data as it arrives. This is very similar to [async event](#Async Event)
+you the data as it arrives. This is very similar to [async event](#async-event)
  except the event is initiated by the main thread.
 
 ## Cursor
@@ -60,7 +60,7 @@ For more info and prerequistes see [druid/examples/hello_web/README.md](druid/ex
 cd druid/examples/hello_web
 wasm-pack build --out-dir pkg --out-name hello_web
 ```
-[View at http://localhost:8000](http://localhost:8000].
+[View at http://localhost:8000](http://localhost:8000).
 
 This is an example of how to get almost any druid application can be used on the web. This is just the hello_world example but should work for all of them.
 
@@ -70,7 +70,7 @@ For more info and prerequistes see [druid/examples/web/README.md](druid/examples
 cd druid/examples/web
 wasm-pack build --out-dir pkg --out-name web
 ```
-[View at http://localhost:8000](http://localhost:8000].
+[View at http://localhost:8000](http://localhost:8000).
 
 Simple web app.
 
@@ -133,7 +133,7 @@ Very similar to [layout](#Layout) but it splits the screen into 2 segments
 To run this example, make sure you are in `druid/examples/value_formatting`
 And then run `cargo run`
 
-Druid doesnt have numeric specific texboxes, instead you have to parse the input as if it were a numeric value.
+Druid doesn't have numeric specific texboxes, instead you have to parse the input as if it were a numeric value.
 This example shows you how to parse, and validate text input. 
 
 ## Split
@@ -180,7 +180,7 @@ Switches are useful in many ways, this example shows how to use the druid built-
 ```
 cargo run --example tabs --features="im"
 ```
-Tabs allow you to seperate different portions of the UI. This example shows you how to use them in druid. similar to [view switcher](#View Switcher) but with with a different purpose.
+Tabs allow you to separate different portions of the UI. This example shows you how to use them in druid. similar to [view switcher](#View Switcher) but with with a different purpose.
 
 ## Text
 ```
@@ -192,13 +192,13 @@ Text shows the effects of TextAlignment and LineBreaker types.
 ```
 cargo run --example textbox
 ```
-Textbox demostrates some of the possible configuraitons of the TextBox widget.
+Textbox demonstrates some of the possible configuraitons of the TextBox widget.
 
 ## Timer
 ```
 cargo run --example timer
 ```
-Timers allow you to send events to your widgets at a certain points inthe future. This example shows how to use them.
+Timers allow you to send events to your widgets at a certain points in the future. This example shows how to use them.
 
 ## Transparency
 ```
@@ -224,7 +224,7 @@ cargo run --example calc
 cargo run --example disabled
 ```
 
-This showcases all the widgets that can have disabled input. Disabling a widget is usefull for preventing the user from entering input.
+This showcases all the widgets that can have disabled input. Disabling a widget is useful for preventing the user from entering input.
 
 ## Event Viewer
 ```
@@ -238,7 +238,7 @@ Used as a debugging tool, this prints out mouse and keyboard events as they are 
 cargo run --example flex
 ```
 
-Flex shows off all the things you can do with flex elements. You can play with all the setings and it will change in real-time.
+Flex shows off all the things you can do with flex elements. You can play with all the settings and it will change in real-time.
 
 ## Game Of Life
 ```

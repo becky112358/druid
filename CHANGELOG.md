@@ -71,7 +71,10 @@ You can find its changes [documented below](#070---2021-01-01).
 - `EventCtx::submit_notification_without_warning` ([#2141] by [@xarvic])
 - `WidgetPod::requested_layout` ([#2145] by [@xarvic])
 - Make `Parse` work better with floats and similar types ([#2148] by [@superfell])
-- `Scroll` widget: add the ability to snap the view to the most recent input ([#1798] by [@becky112358])
+- Added `compute_max_intrinsic` method to the `Widget` trait, which determines the maximum useful dimension of the widget ([#2172] by [@sjoshid])
+- Windows: Dark mode support for the title bar ([#2196] by [@dristic])
+- `ZStack` widget ([#2235] by [@xarvic])
+- `Lifecycle::ViewStateChanged`, `InternalLifecycle::RouteViewStateChanged`, `ChangeCtx`, and `RequestCtx` ([#2149] by [@xarvic])
 
 ### Changed
 
@@ -98,8 +101,13 @@ You can find its changes [documented below](#070---2021-01-01).
 - `AppDelegate::window_added` now receives the new window's `WindowHandle`. ([#2119] by [@zedseven])
 - Removed line of code that prevented window miximalization. ([#2113] by [@Pavel-N])
 - Dont warn about unhandled `Notification`s which have `known_target` set to false ([#2141] by [@xarvic])
-- `ClipBox`, `Flex`, `List` and `Split` only call layout on children which need it ([#2145] by [@xarvic]) 
+- `ClipBox`, `Flex`, `List` and `Split` only call layout on children which need it ([#2145] by [@xarvic])
 - `SizedBox` now supports using `Key<f64>` for specifying  size ([#2151] by [@GoldsteinE])
+- `RadioGroup` widgets are now constructed with new `row()`, `column()`, and `for_axis()` methods ([#2157] by [@twitchyliquid64])
+- Replace `info_span!` with `trace_span!` ([#2203] by [@NickLarsenNZ])
+- `WidgetPod::event` propagates handled mouse events to active children ([#2235] by [@xarvic])
+- changing hot state is now done in `Lifecycle::ChangeViewState` instead of `layout` ([#2149] by [@xarvic])
+- `WidgetPod::set_origin` no longer takes `data` and `env` as parameters. ([#2149] by [@xarvic])
 
 ### Deprecated
 
@@ -128,6 +136,7 @@ You can find its changes [documented below](#070---2021-01-01).
 - `ListIter` implementations for `Vector<T>` and `(S, Vector<T>)` ([#1967] by [@xarvic])
 - Do not panic in Application::try_global if Application is not created ([#1996] by [@Maan2003])
 - X11: window focus events ([#1938] by [@Maan2003]
+- Preserve the aspect ratio of a clipped region in an Image ([#2195] by [@barsae])
 
 ### Visual
 
@@ -142,6 +151,9 @@ You can find its changes [documented below](#070---2021-01-01).
 - Updated source code, tests and docs to use `Selector::with` instead of `Command::new` ([#1761] by [@arthmis])
 - Updated docs of `should_propagate_to_hidden`, `children_changed` and `register_for_focus` ([#1861] by [@xarvic])
 - Update docs of `RawLabel`: does not require `ArcStr`([#1886] by [@Maan2003])
+- Fix `Controller` links for `Click` ([#2158] by [@yrns])
+- Delete inaccurate line for `KeyEvent` ([#2247] by [@amtep])
+- Added examples in `TextBox` ([#2284] by [@ThomasMcandrew])
 
 ### Examples
 - Add readme ([#1423] by [@JAicewizard])
@@ -160,7 +172,7 @@ You can find its changes [documented below](#070---2021-01-01).
 ### Highlights
 
 - Text improvements: `TextLayout` type ([#1182]) and rich text support ([#1245])
-- The `Formatter` trait provides more flexible handling of converions between
+- The `Formatter` trait provides more flexible handling of conversions between
 values and their textual representations. ([#1377])
 
 ### Added
@@ -243,6 +255,7 @@ values and their textual representations. ([#1377])
 - All Image formats are now optional, reducing compile time and binary size by default ([#1340] by [@JAicewizard])
 - The `Cursor` API has changed to a stateful one ([#1433] by [@jneem])
 - Part of the `SAVE_FILE` command is now `SAVE_FILE_AS` ([#1463] by [@jneem])
+- Windows: Use custom application icon, if present ([#2274] by [@tay64])
 
 ### Deprecated
 - Parse widget (replaced with `Formatter` trait) ([#1377] by [@cmyr])
@@ -552,9 +565,18 @@ Last release without a changelog :(
 [@maurerdietmar]: https://github.com/maurerdietmar
 [@superfell]: https://github.com/superfell
 [@GoldsteinE]: https://github.com/GoldsteinE
+<<<<<<< HEAD
 =======
 [@becky112358]: https://github.com/becky112358
 >>>>>>> aaf638a807ebe31d5faa857b66d8ccbcd2dd89cd
+=======
+[@twitchyliquid64]: https://github.com/twitchyliquid64
+[@dristic]: https://github.com/dristic
+[@NickLarsenNZ]: https://github.com/NickLarsenNZ
+[@barsae]: https://github.com/barsae
+[@amtep]: https://github.com/amtep
+[@ThomasMcandrew]: https:github.com/ThomasMcandrew
+>>>>>>> origin
 
 [#599]: https://github.com/linebender/druid/pull/599
 [#611]: https://github.com/linebender/druid/pull/611
@@ -845,10 +867,24 @@ Last release without a changelog :(
 [#2117]: https://github.com/linebender/druid/pull/2141
 [#2145]: https://github.com/linebender/druid/pull/2145
 [#2148]: https://github.com/linebender/druid/pull/2148
+[#2149]: https://github.com/linebender/druid/pull/2149
 [#2151]: https://github.com/linebender/druid/pull/2151
+<<<<<<< HEAD
 =======
 [#1798]: https://github.com/linebender/druid/pull/1798
 >>>>>>> aaf638a807ebe31d5faa857b66d8ccbcd2dd89cd
+=======
+[#2157]: https://github.com/linebender/druid/pull/2157
+[#2158]: https://github.com/linebender/druid/pull/2158
+[#2172]: https://github.com/linebender/druid/pull/2172
+[#2195]: https://github.com/linebender/druid/pull/2195
+[#2196]: https://github.com/linebender/druid/pull/2196
+[#2203]: https://github.com/linebender/druid/pull/2203
+[#2235]: https://github.com/linebender/druid/pull/2235
+[#2247]: https://github.com/linebender/druid/pull/2247
+[#2274]: https://github.com/linebender/druid/pull/2274
+[#2284]: https://github.com/linebender/druid/pull/2284
+>>>>>>> origin
 
 [Unreleased]: https://github.com/linebender/druid/compare/v0.7.0...master
 [0.7.0]: https://github.com/linebender/druid/compare/v0.6.0...v0.7.0

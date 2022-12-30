@@ -40,7 +40,7 @@ pub struct AppLauncher<T> {
 }
 
 /// Defines how a windows size should be determined
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum WindowSizePolicy {
     /// Use the content of the window to determine the size.
     ///
@@ -116,7 +116,7 @@ impl<T: Data> PendingWindow<T> {
         self
     }
 
-    /// Set wether the background should be transparent
+    /// Set whether the background should be transparent
     pub fn transparent(mut self, transparent: bool) -> Self {
         self.transparent = transparent;
         self

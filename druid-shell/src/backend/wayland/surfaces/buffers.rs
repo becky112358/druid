@@ -135,7 +135,7 @@ impl<const N: usize> Buffers<N> {
 
         window.paint(
             self.size.get(),
-            &mut *buf_data,
+            &mut buf_data,
             self.recreate_buffers.replace(false),
         );
     }
@@ -369,7 +369,7 @@ impl Shm {
                     self.size = new_size;
                     return Ok(());
                 }
-                Err(e) if matches!(e.as_errno(), Some(Errno::EINTR)) => {
+                Err(Errno::EINTR) => {
                     // continue (try again)
                 }
                 Err(e) => {
@@ -526,7 +526,7 @@ impl Drop for Mmap {
         }
     }
 }
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct RawSize {
     pub width: i32,
     pub height: i32,
@@ -624,6 +624,7 @@ impl RawRect {
 impl From<Rect> for RawRect {
     fn from(r: Rect) -> Self {
         let max = i32::MAX as f64;
+        let r = r.expand();
         assert!(r.x0.abs() < max && r.y0.abs() < max && r.x1.abs() < max && r.y1.abs() < max);
         RawRect {
             x0: r.x0 as i32,

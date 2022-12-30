@@ -133,6 +133,7 @@
 )]
 #![warn(missing_docs)]
 #![allow(clippy::new_ret_no_self, clippy::needless_doctest_main)]
+#![allow(clippy::duplicate_mod)] // TODO: Remove this after the text/mod.rs format_priv hack has been removed (0.8.0+)
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/linebender/druid/screenshots/images/doc_logo.png"
@@ -210,7 +211,7 @@ pub use contexts::{EventCtx, LayoutCtx, LifeCycleCtx, PaintCtx, UpdateCtx};
 pub use data::Data;
 pub use dialog::FileDialogOptions;
 pub use env::{Env, Key, KeyOrValue, Value, ValueType, ValueTypeError};
-pub use event::{Event, InternalEvent, InternalLifeCycle, LifeCycle};
+pub use event::{Event, InternalEvent, InternalLifeCycle, LifeCycle, ViewContext};
 pub use ext_event::{ExtEventError, ExtEventSink};
 pub use lens::{Lens, LensExt};
 pub use localization::LocalizedString;

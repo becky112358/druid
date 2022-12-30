@@ -42,7 +42,7 @@ use x11rb::wrapper::ConnectionExt as _;
 use x11rb::xcb_ffi::XCBConnection;
 
 #[cfg(feature = "raw-win-handle")]
-use raw_window_handle::{unix::XcbHandle, HasRawWindowHandle, RawWindowHandle};
+use raw_window_handle::{HasRawWindowHandle, RawWindowHandle, XcbWindowHandle};
 
 use crate::backend::shared::Timer;
 use crate::common_util::IdleCallback;
@@ -61,6 +61,7 @@ use crate::window::{
 use crate::{window, KeyEvent, ScaledArea};
 
 use super::application::Application;
+use super::dialog;
 use super::menu::Menu;
 
 /// A version of XCB's `xcb_visualtype_t` struct. This was copied from the [example] in x11rb; it
@@ -396,7 +397,7 @@ impl WindowBuilder {
             let mut wm_class = Vec::with_capacity(2 * (name.len() + 1));
             wm_class.extend(name.as_bytes());
             wm_class.push(0);
-            if let Some(&first) = wm_class.get(0) {
+            if let Some(&first) = wm_class.first() {
                 wm_class.push(first.to_ascii_uppercase());
                 wm_class.extend(&name.as_bytes()[1..]);
             }
@@ -493,7 +494,7 @@ impl WindowBuilder {
             window.set_position(pos);
         }
 
-        let handle = WindowHandle::new(id, Rc::downgrade(&window));
+        let handle = WindowHandle::new(id, visual_type.visual_id, Rc::downgrade(&window));
         window.connect(handle.clone())?;
 
         self.app.add_window(id, window)?;
@@ -661,7 +662,7 @@ struct PresentData {
     last_ust: Option<u64>,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct CustomCursor(xproto::Cursor);
 
 impl Window {
@@ -782,7 +783,7 @@ impl Window {
         let invalid = std::mem::replace(&mut *borrow_mut!(self.invalid)?, Region::EMPTY);
         {
             let surface = borrow!(self.cairo_surface)?;
-            let cairo_ctx = cairo::Context::new(&surface).unwrap();
+            let cairo_ctx = cairo::Context::new(&*surface).unwrap();
             let scale = self.scale.get();
             for rect in invalid.rects() {
                 let rect = rect.to_px(scale).round();
@@ -1543,8 +1544,8 @@ impl IdleHandle {
     fn wake(&self) {
         loop {
             match nix::unistd::write(self.pipe, &[0]) {
-                Err(nix::Error::Sys(nix::errno::Errno::EINTR)) => {}
-                Err(nix::Error::Sys(nix::errno::Errno::EAGAIN)) => {}
+                Err(nix::errno::Errno::EINTR) => {}
+                Err(nix::errno::Errno::EAGAIN) => {}
                 Err(e) => {
                     error!("Failed to write to idle pipe: {}", e);
                     break;
@@ -1557,23 +1558,22 @@ impl IdleHandle {
     }
 
     pub(crate) fn schedule_redraw(&self) {
-        self.queue.lock().unwrap().push(IdleKind::Redraw);
-        self.wake();
+        self.add_idle(IdleKind::Redraw);
     }
 
     pub fn add_idle_callback<F>(&self, callback: F)
     where
         F: FnOnce(&mut dyn WinHandler) + Send + 'static,
     {
-        self.queue
-            .lock()
-            .unwrap()
-            .push(IdleKind::Callback(Box::new(callback)));
-        self.wake();
+        self.add_idle(IdleKind::Callback(Box::new(callback)));
     }
 
     pub fn add_idle_token(&self, token: IdleToken) {
-        self.queue.lock().unwrap().push(IdleKind::Token(token));
+        self.add_idle(IdleKind::Token(token));
+    }
+
+    fn add_idle(&self, idle: IdleKind) {
+        self.queue.lock().unwrap().push(idle);
         self.wake();
     }
 }
@@ -1581,6 +1581,8 @@ impl IdleHandle {
 #[derive(Clone, Default)]
 pub(crate) struct WindowHandle {
     id: u32,
+    #[allow(dead_code)] // Only used with the raw-win-handle feature
+    visual_id: u32,
     window: Weak<Window>,
 }
 impl PartialEq for WindowHandle {
@@ -1591,8 +1593,12 @@ impl PartialEq for WindowHandle {
 impl Eq for WindowHandle {}
 
 impl WindowHandle {
-    fn new(id: u32, window: Weak<Window>) -> WindowHandle {
-        WindowHandle { id, window }
+    fn new(id: u32, visual_id: u32, window: Weak<Window>) -> WindowHandle {
+        WindowHandle {
+            id,
+            visual_id,
+            window,
+        }
     }
 
     pub fn show(&self) {
@@ -1780,7 +1786,7 @@ impl WindowHandle {
                     let conn = w.app.connection();
                     let setup = &conn.setup();
                     let screen = &setup.roots[w.app.screen_num()];
-                    match make_cursor(&**conn, setup.image_byte_order, screen.root, format, desc) {
+                    match make_cursor(conn, setup.image_byte_order, screen.root, format, desc) {
                         // TODO: We 'leak' the cursor - nothing ever calls render_free_cursor
                         Ok(cursor) => Some(cursor),
                         Err(err) => {
@@ -1795,16 +1801,30 @@ impl WindowHandle {
         }
     }
 
-    pub fn open_file(&mut self, _options: FileDialogOptions) -> Option<FileDialogToken> {
-        // TODO(x11/file_dialogs): implement WindowHandle::open_file
-        warn!("WindowHandle::open_file is currently unimplemented for X11 backend.");
-        None
+    pub fn open_file(&mut self, options: FileDialogOptions) -> Option<FileDialogToken> {
+        if let Some(w) = self.window.upgrade() {
+            if let Some(idle) = self.get_idle_handle() {
+                Some(dialog::open_file(w.id, idle, options))
+            } else {
+                warn!("Couldn't open file because no idle handle available");
+                None
+            }
+        } else {
+            None
+        }
     }
 
-    pub fn save_as(&mut self, _options: FileDialogOptions) -> Option<FileDialogToken> {
-        // TODO(x11/file_dialogs): implement WindowHandle::save_as
-        warn!("WindowHandle::save_as is currently unimplemented for X11 backend.");
-        None
+    pub fn save_as(&mut self, options: FileDialogOptions) -> Option<FileDialogToken> {
+        if let Some(w) = self.window.upgrade() {
+            if let Some(idle) = self.get_idle_handle() {
+                Some(dialog::save_file(w.id, idle, options))
+            } else {
+                warn!("Couldn't save file because no idle handle available");
+                None
+            }
+        } else {
+            None
+        }
     }
 
     pub fn show_context_menu(&self, _menu: Menu, _pos: Point) {
@@ -1832,19 +1852,9 @@ impl WindowHandle {
 #[cfg(feature = "raw-win-handle")]
 unsafe impl HasRawWindowHandle for WindowHandle {
     fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut handle = XcbHandle {
-            window: self.id,
-            ..XcbHandle::empty()
-        };
-
-        if let Some(window) = self.window.upgrade() {
-            handle.connection = window.app.connection().get_raw_xcb_connection();
-        } else {
-            // Documentation for HasRawWindowHandle encourages filling in all fields possible,
-            // leaving those empty that cannot be derived.
-            error!("Failed to get XCBConnection, returning incomplete handle");
-        }
-
+        let mut handle = XcbWindowHandle::empty();
+        handle.window = self.id;
+        handle.visual_id = self.visual_id;
         RawWindowHandle::Xcb(handle)
     }
 }

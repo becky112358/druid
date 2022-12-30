@@ -140,22 +140,22 @@ fn main() {
         0x100,
         "E&xit",
         Some(&HotKey::new(SysMods::Cmd, "q")),
+        None,
         true,
-        false,
     );
     file_menu.add_item(
         0x101,
         "O&pen",
         Some(&HotKey::new(SysMods::Cmd, "o")),
+        None,
         true,
-        false,
     );
     file_menu.add_item(
         0x102,
         "S&ave",
         Some(&HotKey::new(SysMods::Cmd, "s")),
+        None,
         true,
-        false,
     );
     let mut menubar = Menu::new();
     menubar.add_dropdown(Menu::new(), "Application", true);
@@ -163,7 +163,7 @@ fn main() {
 
     let app = Application::new().unwrap();
     let mut builder = WindowBuilder::new(app.clone());
-    builder.set_handler(Box::new(HelloState::default()));
+    builder.set_handler(Box::<HelloState>::default());
     builder.set_title("Hello example");
     builder.set_menu(menubar);
 

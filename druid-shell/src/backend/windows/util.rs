@@ -23,7 +23,7 @@ use std::os::windows::ffi::{OsStrExt, OsStringExt};
 use std::ptr;
 use std::slice;
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use winapi::ctypes::c_void;
 use winapi::shared::dxgi::IDXGIDevice;
 use winapi::shared::guiddef::REFIID;
@@ -84,7 +84,7 @@ pub trait FromWide {
         OsStringExt::from_wide(self.to_u16_slice())
     }
 
-    fn from_wide(&self) -> Option<String> {
+    fn to_string(&self) -> Option<String> {
         String::from_utf16(self.to_u16_slice()).ok()
     }
 }
@@ -253,9 +253,7 @@ fn load_optional_functions() -> OptionalFunctions {
     }
 }
 
-lazy_static! {
-    pub static ref OPTIONAL_FUNCTIONS: OptionalFunctions = load_optional_functions();
-}
+pub static OPTIONAL_FUNCTIONS: Lazy<OptionalFunctions> = Lazy::new(load_optional_functions);
 
 pub(crate) const CLASS_NAME: &str = "druid";
 

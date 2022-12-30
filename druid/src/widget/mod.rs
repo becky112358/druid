@@ -34,6 +34,7 @@ mod env_scope;
 mod flex;
 mod identity_wrapper;
 mod image;
+mod intrinsic_width;
 mod invalidation;
 mod label;
 mod lens_wrap;
@@ -62,6 +63,7 @@ mod view_switcher;
 #[allow(clippy::module_inception)]
 mod widget;
 mod widget_ext;
+mod z_stack;
 
 pub use self::image::Image;
 pub use added::Added;
@@ -79,6 +81,7 @@ pub use either::Either;
 pub use env_scope::EnvScope;
 pub use flex::{Axis, CrossAxisAlignment, Flex, FlexParams, MainAxisAlignment};
 pub use identity_wrapper::IdentityWrapper;
+pub use intrinsic_width::IntrinsicWidth;
 pub use label::{Label, LabelText, LineBreaking, RawLabel};
 pub use lens_wrap::LensWrap;
 pub use list::{List, ListIter};
@@ -107,6 +110,7 @@ pub use widget::{Widget, WidgetId};
 #[doc(hidden)]
 pub use widget_ext::WidgetExt;
 pub use widget_wrapper::WidgetWrapper;
+pub use z_stack::ZStack;
 
 /// The types required to implement a `Widget`.
 ///

@@ -18,6 +18,7 @@ use super::BackgroundBrush;
 use crate::debug_state::DebugState;
 use crate::kurbo::RoundedRectRadii;
 use crate::widget::prelude::*;
+use crate::widget::Axis;
 use crate::{Color, Data, KeyOrValue, Point, WidgetPod};
 use tracing::{instrument, trace, trace_span};
 
@@ -49,7 +50,7 @@ impl<T: Data> Container<T> {
     /// Builder-style method for setting the background for this widget.
     ///
     /// This can be passed anything which can be represented by a [`BackgroundBrush`];
-    /// noteably, it can be any [`Color`], a [`Key<Color>`] resolvable in the [`Env`],
+    /// notably, it can be any [`Color`], a [`Key<Color>`] resolvable in the [`Env`],
     /// any gradient, or a fully custom [`Painter`] widget.
     ///
     /// [`BackgroundBrush`]: ../enum.BackgroundBrush.html
@@ -65,7 +66,7 @@ impl<T: Data> Container<T> {
     /// Set the background for this widget.
     ///
     /// This can be passed anything which can be represented by a [`BackgroundBrush`];
-    /// noteably, it can be any [`Color`], a [`Key<Color>`] resolvable in the [`Env`],
+    /// notably, it can be any [`Color`], a [`Key<Color>`] resolvable in the [`Env`],
     /// any gradient, or a fully custom [`Painter`] widget.
     ///
     /// [`BackgroundBrush`]: ../enum.BackgroundBrush.html
@@ -189,7 +190,7 @@ impl<T: Data> Widget<T> for Container<T> {
         let child_bc = bc.shrink((2.0 * border_width, 2.0 * border_width));
         let size = self.child.layout(ctx, &child_bc, data, env);
         let origin = Point::new(border_width, border_width);
-        self.child.set_origin(ctx, data, env, origin);
+        self.child.set_origin(ctx, origin);
 
         let my_size = Size::new(
             size.width + 2.0 * border_width,
@@ -241,5 +242,26 @@ impl<T: Data> Widget<T> for Container<T> {
             children: vec![self.child.widget().debug_state(data)],
             ..Default::default()
         }
+    }
+
+    fn compute_max_intrinsic(
+        &mut self,
+        axis: Axis,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &T,
+        env: &Env,
+    ) -> f64 {
+        let container_width = match &self.border {
+            Some(border) => border.width.resolve(env),
+            None => 0.0,
+        };
+        let child_bc = bc.shrink((2.0 * container_width, 2.0 * container_width));
+        let child_size = self
+            .child
+            .widget_mut()
+            .compute_max_intrinsic(axis, ctx, &child_bc, data, env);
+        let border_width_on_both_sides = container_width * 2.;
+        child_size + border_width_on_both_sides
     }
 }
