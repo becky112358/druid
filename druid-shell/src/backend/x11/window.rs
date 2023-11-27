@@ -120,6 +120,7 @@ pub(crate) struct WindowBuilder {
     min_size: Size,
     resizable: bool,
     level: WindowLevel,
+    always_on_top: bool,
     state: Option<window::WindowState>,
 }
 
@@ -135,6 +136,7 @@ impl WindowBuilder {
             min_size: Size::new(0.0, 0.0),
             resizable: true,
             level: WindowLevel::AppWindow,
+            always_on_top: false,
             state: None,
         }
     }
@@ -171,6 +173,10 @@ impl WindowBuilder {
 
     pub fn set_position(&mut self, position: Point) {
         self.position = Some(position);
+    }
+
+    pub fn set_always_on_top(&mut self, always_on_top: bool) {
+        self.always_on_top = always_on_top;
     }
 
     pub fn set_level(&mut self, level: window::WindowLevel) {
@@ -563,7 +569,7 @@ pub(crate) struct Window {
     scale: Cell<Scale>,
     // min size in px
     min_size: Size,
-    /// We've told X11 to destroy this window, so don't so any more X requests with this window id.
+    /// We've told X11 to destroy this window, so don't do any more X requests with this window id.
     destroyed: Cell<bool>,
     /// The region that was invalidated since the last time we rendered.
     invalid: RefCell<Region>,
@@ -853,6 +859,12 @@ impl Window {
         }
     }
 
+    fn hide(&self) {
+        if !self.destroyed() {
+            log_x11!(self.app.connection().unmap_window(self.id));
+        }
+    }
+
     fn close(&self) {
         self.destroy();
     }
@@ -904,6 +916,18 @@ impl Window {
         ));
     }
 
+    fn set_always_on_top(&self, _always_on_top: bool) {
+        // Find the Rust equivilant to "_NET_WM_STATE_ABOVE".
+        // Possibly StackMode::Above.
+        warn!("Window::set_always_on_top is currently unimplemented for X11 backend.");
+    }
+
+    fn set_input_region(&self, _region: Option<Region>) {
+        // Looks like con.shape_mask or conn_shape_rectangles may be the
+        // correct way to implement this.
+        warn!("Window::set_input_region is currently unimplemented for X11 backend.");
+    }
+
     fn set_size(&self, size: Size) {
         let conn = self.app.connection();
         let scale = self.scale.get();
@@ -922,12 +946,17 @@ impl Window {
             return;
         }
 
-        // TODO(x11/misc): Unsure if this does exactly what the doc comment says; need a test case.
         let conn = self.app.connection();
+
+        // This has no effect if we are already "mapped" but it shows the application if it was previously hidden
+        log_x11!(conn.map_window(self.id));
+
+        // Ask nicely to have our window to be at the top of the window stack
         log_x11!(conn.configure_window(
             self.id,
             &xproto::ConfigureWindowAux::new().stack_mode(xproto::StackMode::ABOVE),
         ));
+
         log_x11!(conn.set_input_focus(
             xproto::InputFocus::POINTER_ROOT,
             self.id,
@@ -1609,6 +1638,14 @@ impl WindowHandle {
         }
     }
 
+    pub fn hide(&self) {
+        if let Some(w) = self.window.upgrade() {
+            w.hide();
+        } else {
+            error!("Window {} has already been dropped", self.id);
+        }
+    }
+
     pub fn close(&self) {
         if let Some(w) = self.window.upgrade() {
             w.close();
@@ -1636,6 +1673,22 @@ impl WindowHandle {
     pub fn set_position(&self, position: Point) {
         if let Some(w) = self.window.upgrade() {
             w.set_position(position);
+        } else {
+            error!("Window {} has already been dropped", self.id);
+        }
+    }
+
+    pub fn set_always_on_top(&self, always_on_top: bool) {
+        if let Some(w) = self.window.upgrade() {
+            w.set_always_on_top(always_on_top);
+        } else {
+            error!("Window {} has already been dropped", self.id);
+        }
+    }
+
+    pub fn set_input_region(&self, region: Option<Region>) {
+        if let Some(w) = self.window.upgrade() {
+            w.set_input_region(region);
         } else {
             error!("Window {} has already been dropped", self.id);
         }

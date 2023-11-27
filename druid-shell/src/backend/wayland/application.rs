@@ -38,6 +38,7 @@ use wayland_client::{
     protocol::{
         wl_compositor::WlCompositor,
         wl_pointer::WlPointer,
+        wl_region::WlRegion,
         wl_seat::{self, WlSeat},
         wl_shm::{self, WlShm},
         wl_surface::WlSurface,
@@ -419,6 +420,10 @@ impl surfaces::Compositor for Data {
         self.wl_compositor.create_surface()
     }
 
+    fn create_region(&self) -> wl::Main<WlRegion> {
+        self.wl_compositor.create_region()
+    }
+
     fn shared_mem(&self) -> wl::Main<WlShm> {
         self.wl_shm.clone()
     }
@@ -449,7 +454,7 @@ impl Data {
             .queue
             .borrow_mut()
             .sync_roundtrip(&mut (), |evt, _, _| {
-                panic!("unexpected wayland event: {:?}", evt)
+                panic!("unexpected wayland event: {evt:?}")
             })
             .map_err(Error::fatal)?;
         Ok(())

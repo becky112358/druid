@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! The implementation of the WinHandler trait (druid-shell integration).
+//! The implementation of the `WinHandler` trait (`druid-shell` integration).
 
 use std::any::{Any, TypeId};
 use std::cell::RefCell;
@@ -45,7 +45,7 @@ pub(crate) const RUN_COMMANDS_TOKEN: IdleToken = IdleToken::new(1);
 /// A token we are called back with if an external event was submitted.
 pub(crate) const EXT_EVENT_IDLE_TOKEN: IdleToken = IdleToken::new(2);
 
-/// The struct implements the druid-shell `WinHandler` trait.
+/// The struct implements the `druid-shell` `WinHandler` trait.
 ///
 /// One `DruidHandler` exists per window.
 ///
@@ -60,7 +60,7 @@ pub struct DruidHandler<T> {
 
 /// The top level event handler.
 ///
-/// This corresponds to the `AppHandler` trait in druid-shell, which is only
+/// This corresponds to the `AppHandler` trait in `druid-shell`, which is only
 /// used to handle events that are not associated with a window.
 ///
 /// Currently, this means only menu items on macOS when no window is open.
@@ -74,7 +74,7 @@ pub(crate) struct AppState<T> {
     inner: Rc<RefCell<InnerAppState<T>>>,
 }
 
-/// The information for forwarding druid-shell's file dialog reply to the right place.
+/// The information for forwarding `druid-shell`'s file dialog reply to the right place.
 struct DialogInfo {
     /// The window to send the command to.
     id: WindowId,
@@ -321,6 +321,12 @@ impl<T: Data> InnerAppState<T> {
     fn show_window(&mut self, id: WindowId) {
         if let Some(win) = self.windows.get_mut(id) {
             win.handle.bring_to_front_and_focus();
+        }
+    }
+
+    fn hide_window(&mut self, id: WindowId) {
+        if let Some(win) = self.windows.get_mut(id) {
+            win.handle.hide();
         }
     }
 
@@ -641,7 +647,7 @@ impl<T: Data> AppState<T> {
         }
     }
 
-    /// Handle a 'command' message from druid-shell. These map to  an item
+    /// Handle a 'command' message from `druid-shell`. These map to an item
     /// in an application, window, or context (right-click) menu.
     ///
     /// If the menu is  associated with a window (the general case) then
@@ -689,12 +695,16 @@ impl<T: Data> AppState<T> {
                 }
             }
             T::Window(id) if cmd.is(sys_cmd::SHOW_WINDOW) => self.show_window(id),
+            T::Window(id) if cmd.is(sys_cmd::HIDE_WINDOW) => self.hide_window(id),
             T::Window(id) if cmd.is(sys_cmd::PASTE) => self.do_paste(id),
             _ if cmd.is(sys_cmd::CLOSE_WINDOW) => {
                 tracing::warn!("CLOSE_WINDOW command must target a window.")
             }
             _ if cmd.is(sys_cmd::SHOW_WINDOW) => {
                 tracing::warn!("SHOW_WINDOW command must target a window.")
+            }
+            _ if cmd.is(sys_cmd::HIDE_WINDOW) => {
+                tracing::warn!("HIDE_WINDOW command must target a window.")
             }
             _ if cmd.is(sys_cmd::SHOW_OPEN_PANEL) => {
                 tracing::warn!("SHOW_OPEN_PANEL command must target a window.")
@@ -848,6 +858,10 @@ impl<T: Data> AppState<T> {
         self.inner.borrow_mut().show_window(id);
     }
 
+    fn hide_window(&mut self, id: WindowId) {
+        self.inner.borrow_mut().hide_window(id);
+    }
+
     fn configure_window(&mut self, cmd: Command, id: WindowId) {
         if let Some(config) = cmd.get(sys_cmd::CONFIGURE_WINDOW) {
             self.inner.borrow_mut().configure_window(config, id);
@@ -951,8 +965,9 @@ impl<T: Data> WinHandler for DruidHandler<T> {
         self.app_state.do_window_event(event, self.window_id);
     }
 
-    fn scale(&mut self, _scale: Scale) {
-        // TODO: Do something with the scale
+    fn scale(&mut self, scale: Scale) {
+        let event = Event::WindowScale(scale);
+        self.app_state.do_window_event(event, self.window_id);
     }
 
     fn command(&mut self, id: u32) {

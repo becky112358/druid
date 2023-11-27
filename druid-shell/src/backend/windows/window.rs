@@ -99,10 +99,11 @@ pub(crate) struct WindowBuilder {
     min_size: Option<Size>,
     position: Option<Point>,
     level: Option<WindowLevel>,
+    always_on_top: bool,
     state: window::WindowState,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
 /// It's very tricky to get smooth dynamics (especially resizing) and
 /// good performance on Windows. This setting lets clients experiment
 /// with different strategies.
@@ -118,6 +119,7 @@ pub enum PresentStrategy {
     /// incremental present seems to work fine.
     ///
     /// Also note, this swap effect is not compatible with DX12.
+    #[default]
     Sequential,
 
     /// Corresponds to the swap effect DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL.
@@ -137,21 +139,21 @@ pub enum PresentStrategy {
 /// We work hard to avoid calling into `WinHandler` re-entrantly. Since we use
 /// the system's event loop, and since the `WinHandler` gets a `WindowHandle` to use, this implies
 /// that none of the `WindowHandle`'s methods can return control to the system's event loop
-/// (because if it did, the system could call back into druid-shell with some mouse event, and then
+/// (because if it did, the system could call back into `druid-shell` with some mouse event, and then
 /// we'd try to call the `WinHandler` again).
 ///
 /// The solution is that for every `WindowHandle` method that *wants* to return control to the
-/// system's event loop, instead of doing that we queue up a deferrred operation and return
+/// system's event loop, instead of doing that we queue up a deferred operation and return
 /// immediately. The deferred operations will run whenever the currently running `WinHandler`
 /// method returns.
 ///
 /// An example call trace might look like:
-/// 1. the system hands a mouse click event to druid-shell
-/// 2. druid-shell calls `WinHandler::mouse_up`
+/// 1. the system hands a mouse click event to `druid-shell`
+/// 2. `druid-shell` calls `WinHandler::mouse_up`
 /// 3. after some processing, the `WinHandler` calls `WindowHandle::save_as`, which schedules a
 ///   deferred op and returns immediately
 /// 4. after some more processing, `WinHandler::mouse_up` returns
-/// 5. druid-shell displays the "save as" dialog that was requested in step 3.
+/// 5. `druid-shell` displays the "save as" dialog that was requested in step 3.
 enum DeferredOp {
     SaveAs(FileDialogOptions, FileDialogToken),
     Open(FileDialogOptions, FileDialogToken),
@@ -161,7 +163,10 @@ enum DeferredOp {
     SetSize(Size),
     SetResizable(bool),
     SetWindowState(window::WindowState),
+    ShowWindow(bool),
     ReleaseMouseCapture,
+    SetRegion(Option<Region>),
+    SetAlwaysOnTop(bool),
 }
 
 #[derive(Clone, Debug)]
@@ -237,6 +242,7 @@ struct WindowState {
     // False for tooltips, to prevent stealing focus from owner window.
     is_focusable: bool,
     window_level: WindowLevel,
+    is_always_on_top: Cell<bool>,
 }
 
 impl std::fmt::Debug for WindowState {
@@ -331,12 +337,6 @@ const DS_RUN_IDLE: UINT = WM_USER;
 /// time it is handled, we can successfully borrow the handler.
 pub(crate) const DS_REQUEST_DESTROY: UINT = WM_USER + 1;
 
-impl Default for PresentStrategy {
-    fn default() -> PresentStrategy {
-        PresentStrategy::Sequential
-    }
-}
-
 /// Extract the buttons that are being held down from wparam in mouse events.
 fn get_buttons(wparam: WPARAM) -> MouseButtons {
     let mut buttons = MouseButtons::new();
@@ -419,6 +419,54 @@ fn set_style(hwnd: HWND, resizable: bool, titlebar: bool) {
         {
             warn!(
                 "failed to update window style: {}",
+                Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
+            );
+        };
+    }
+}
+
+/// The ex style is different from the non-ex styles.
+fn set_ex_style(hwnd: HWND, always_on_top: bool) {
+    unsafe {
+        let mut style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
+        if style == 0 {
+            warn!(
+                "failed to get window ex style: {}",
+                Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
+            );
+            return;
+        }
+
+        if !always_on_top {
+            style &= !WS_EX_TOPMOST;
+        } else {
+            style |= WS_EX_TOPMOST;
+        }
+        if SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style as _) == 0 {
+            warn!(
+                "failed to set the window ex style: {}",
+                Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
+            );
+        }
+        // This is necessary to ensure it properly changes the z order.
+        let z_insert_after = if always_on_top {
+            HWND_TOPMOST
+        } else {
+            HWND_NOTOPMOST
+        };
+        // Since ES_EX_TOPMOST can change the z order, don't disable changing the z order on SetWindowPos
+        if SetWindowPos(
+            hwnd,
+            z_insert_after,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_FRAMECHANGED | SWP_NOSIZE | SWP_NOACTIVATE,
+        ) == 0
+        {
+            warn!(
+                "failed to update window ex style: {}",
                 Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
             );
         };
@@ -604,6 +652,10 @@ impl MyWndProc {
                     self.with_window_state(|s| s.is_resizable.set(resizable));
                     set_style(hwnd, resizable, self.has_titlebar());
                 }
+                DeferredOp::SetAlwaysOnTop(always_on_top) => {
+                    self.with_window_state(|s| s.is_always_on_top.set(always_on_top));
+                    set_ex_style(hwnd, always_on_top);
+                }
                 DeferredOp::SetWindowState(val) => {
                     let show = if self.handle.borrow().is_focusable() {
                         match val {
@@ -616,6 +668,17 @@ impl MyWndProc {
                     };
                     unsafe {
                         ShowWindow(hwnd, show);
+                    }
+                }
+                DeferredOp::ShowWindow(should_show) => {
+                    let show = if should_show { SW_SHOW } else { SW_HIDE };
+
+                    unsafe {
+                        ShowWindow(hwnd, show);
+
+                        if should_show {
+                            SetForegroundWindow(hwnd);
+                        }
                     }
                 }
                 DeferredOp::SaveAs(options, token) => {
@@ -666,9 +729,153 @@ impl MyWndProc {
                         }
                     }
                 },
+                DeferredOp::SetRegion(region) => {
+                    unsafe {
+                        match region {
+                            Some(region) => {
+                                let (x_offset, y_offset, client_width) =
+                                    self.get_client_area_specs(hwnd);
+                                let win32_region: HRGN = CreateRectRgn(0, 0, 0, 0);
+                                if win32_region.is_null() {
+                                    warn!(
+                                        "Error creating RectRgn in SetRegion deferred op: {}",
+                                        Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
+                                    );
+                                }
+
+                                // Add header if there is a frame
+                                if self.has_titlebar() {
+                                    let region_tmp = win32_region;
+                                    let header_rect = CreateRectRgn(0, 0, client_width, y_offset);
+                                    if header_rect.is_null() {
+                                        warn!(
+                                            "Error creating RectRgn in SetRegion deferred op for titlebar: {}",
+                                            Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
+                                        );
+                                    } else {
+                                        let result = CombineRgn(
+                                            win32_region,
+                                            header_rect,
+                                            region_tmp,
+                                            RGN_OR,
+                                        );
+                                        DeleteObject(header_rect as _);
+                                        if result == ERROR {
+                                            warn!(
+                                                "Error combining regions in SetRegion deferred op for titlebar: {}",
+                                                Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
+                                            );
+                                        }
+                                    }
+                                }
+
+                                let scale = self.scale();
+                                for rect in region.rects() {
+                                    // Create the region as win32 expects it. Round down for low coords and up for high coords
+                                    let region_part = CreateRectRgn(
+                                        (rect.x0 * scale.x()).floor() as i32 + x_offset,
+                                        (rect.y0 * scale.y()).floor() as i32 + y_offset,
+                                        (rect.x1 * scale.x()).ceil() as i32 + x_offset,
+                                        (rect.y1 * scale.y()).ceil() as i32 + y_offset,
+                                    );
+                                    if region_part.is_null() {
+                                        warn!(
+                                            "Error creating RectRgn for section of region in SetRegion deferred op: {}",
+                                            Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
+                                        );
+                                        continue; // Try the next. Don't try to combine a null region.
+                                    }
+                                    let region_tmp = win32_region;
+                                    let result = CombineRgn(
+                                        win32_region,
+                                        region_part,
+                                        region_tmp,
+                                        RGN_OR, /* area from both */
+                                    );
+                                    // Delete the region part, as it is now incorporated into the combined region.
+                                    // Deleting the temp region deletes the combined region.
+                                    DeleteObject(region_part as _);
+                                    if result == ERROR {
+                                        warn!(
+                                            "Error combining regions in SetRegion deferred op: {}",
+                                            Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
+                                        );
+                                    }
+                                }
+
+                                let result = SetWindowRgn(hwnd, win32_region, 1);
+                                if result == ERROR {
+                                    DeleteObject(win32_region as _); // Must delete it if and only if it fails.
+                                    warn!(
+                                        "Error calling SetWindowRgn in SetRegion deferred op: {}",
+                                        Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
+                                    );
+                                }
+                            }
+                            None => {
+                                // Set it to have no region
+                                let result = SetWindowRgn(hwnd, null_mut(), 1);
+                                if result == ERROR {
+                                    // No region to delete since we're just passing in a null region.
+                                    warn!(
+                                        "Error calling SetWindowRgn to null in SetRegion deferred op: {}",
+                                        Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
             }
         } else {
             warn!("Could not get HWND");
+        }
+    }
+
+    // Returns the top offset, and the side offsets, window width
+    fn get_client_area_specs(&self, hwnd: HWND) -> (i32, i32, i32) {
+        unsafe {
+            // First get window rect
+            // Then get client rect
+            // Convert to same units, then subtract
+
+            let mut window_rect = RECT {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            };
+            if GetWindowRect(hwnd, &mut window_rect) == ERROR {
+                warn!(
+                    "failed to get window rect: {}",
+                    Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
+                );
+            };
+            let mut client_rect = RECT {
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 0,
+            };
+            if GetClientRect(hwnd, &mut client_rect) == FALSE {
+                warn!(
+                    "failed to get client rect: {}",
+                    Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
+                );
+            }
+            // Convert client rect to screen coords to match the window rect
+            let mut client_screen_offset_point = POINT { x: 0, y: 0 };
+            if ClientToScreen(hwnd, &mut client_screen_offset_point) == ERROR {
+                warn!(
+                    "Error calling ClientToScreen in get_client_area-specs: {}",
+                    Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
+                );
+            };
+            let top_offset = client_screen_offset_point.y - window_rect.top;
+
+            let left_offset = client_screen_offset_point.x - window_rect.left;
+
+            (left_offset, top_offset, client_rect.right)
         }
     }
 
@@ -758,6 +965,9 @@ impl WndProc for MyWndProc {
                 Some(0)
             }
             WM_ACTIVATE => {
+                // Check if the low-order word is not 0
+                // If it were 0, then that means we are being deactivated, in which case we do nothing.
+                // If it is != 0, then we have been activated.
                 if LOWORD(wparam as u32) as u32 != 0 {
                     unsafe {
                         if !self.has_titlebar() && !self.is_transparent() {
@@ -1288,6 +1498,7 @@ impl WindowBuilder {
             min_size: None,
             position: None,
             level: None,
+            always_on_top: false,
             state: window::WindowState::Restored,
         }
     }
@@ -1311,6 +1522,10 @@ impl WindowBuilder {
 
     pub fn show_titlebar(&mut self, show_titlebar: bool) {
         self.show_titlebar = show_titlebar;
+    }
+
+    pub fn set_always_on_top(&mut self, always_on_top: bool) {
+        self.always_on_top = always_on_top;
     }
 
     pub fn set_transparent(&mut self, transparent: bool) {
@@ -1433,6 +1648,7 @@ impl WindowBuilder {
                 active_text_input: Cell::new(None),
                 is_focusable: focusable,
                 window_level,
+                is_always_on_top: Cell::new(self.always_on_top),
             };
             let win = Rc::new(window);
             let handle = WindowHandle {
@@ -1464,6 +1680,10 @@ impl WindowBuilder {
 
             if self.present_strategy == PresentStrategy::Flip {
                 dwExStyle |= WS_EX_NOREDIRECTIONBITMAP;
+            }
+
+            if self.always_on_top {
+                dwExStyle |= WS_EX_TOPMOST;
             }
 
             match self.state {
@@ -1529,7 +1749,7 @@ impl WindowBuilder {
             // Dark mode support
             // https://docs.microsoft.com/en-us/windows/apps/desktop/modernize/apply-windows-themes
             const DWMWA_USE_IMMERSIVE_DARK_MODE: u32 = 20;
-            let value = should_use_light_theme() as BOOL;
+            let value = should_use_dark_theme() as BOOL;
             let value_ptr = &value as *const _ as *const c_void;
             DwmSetWindowAttribute(
                 hwnd,
@@ -1560,7 +1780,7 @@ fn calculate_window_pos(parent_pos_dp: Option<Point>, pos_dp: Point, scale: Scal
 
 /// Attempt to read the registry and see if the system is set to a dark or
 /// light theme.
-pub fn should_use_light_theme() -> bool {
+pub fn should_use_dark_theme() -> bool {
     let mut data: [u8; 4] = [0; 4];
     let mut cb_data: u32 = data.len() as u32;
     let res = unsafe {
@@ -1579,9 +1799,9 @@ pub fn should_use_light_theme() -> bool {
 
     // ERROR_SUCCESS
     if res == 0 {
-        i32::from_le_bytes(data) == 1
+        i32::from_le_bytes(data) == 0
     } else {
-        true // Default to light theme.
+        false // Default to light theme.
     }
 }
 
@@ -1850,6 +2070,7 @@ impl WindowHandle {
         }
     }
 
+    /// Closes the window.
     pub fn close(&self) {
         if let Some(w) = self.state.upgrade() {
             let hwnd = w.hwnd.get();
@@ -1859,10 +2080,14 @@ impl WindowHandle {
         }
     }
 
+    /// Hides the window.
+    pub fn hide(&self) {
+        self.defer(DeferredOp::ShowWindow(false));
+    }
+
     /// Bring this window to the front of the window stack and give it focus.
     pub fn bring_to_front_and_focus(&self) {
-        //FIXME: implementation goes here
-        warn!("bring_to_front_and_focus not yet implemented on windows");
+        self.defer(DeferredOp::ShowWindow(true));
     }
 
     pub fn request_anim_frame(&self) {
@@ -2026,6 +2251,14 @@ impl WindowHandle {
             }
         }
         Size::new(0.0, 0.0)
+    }
+
+    pub fn set_input_region(&self, area: Option<Region>) {
+        self.defer(DeferredOp::SetRegion(area));
+    }
+
+    pub fn set_always_on_top(&self, always_on_top: bool) {
+        self.defer(DeferredOp::SetAlwaysOnTop(always_on_top));
     }
 
     pub fn resizable(&self, resizable: bool) {

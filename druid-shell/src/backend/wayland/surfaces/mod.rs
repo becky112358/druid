@@ -1,13 +1,27 @@
+// Copyright 2022 The Druid Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use wayland_client::protocol::wl_shm::WlShm;
-use wayland_client::{self as wlc, protocol::wl_surface::WlSurface};
+use wayland_client::{self as wlc, protocol::wl_region::WlRegion, protocol::wl_surface::WlSurface};
 use wayland_protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1::ZwlrLayerShellV1;
 use wayland_protocols::xdg_shell::client::xdg_popup;
 use wayland_protocols::xdg_shell::client::xdg_positioner;
 use wayland_protocols::xdg_shell::client::xdg_surface;
 
-use crate::kurbo;
 use crate::Scale;
 use crate::TextFieldToken;
+use crate::{kurbo, Region};
 
 use super::error;
 use super::outputs;
@@ -24,6 +38,7 @@ pub static GLOBAL_ID: crate::Counter = crate::Counter::new();
 pub trait Compositor {
     fn output(&self, id: u32) -> Option<outputs::Meta>;
     fn create_surface(&self) -> wlc::Main<WlSurface>;
+    fn create_region(&self) -> wlc::Main<WlRegion>;
     fn shared_mem(&self) -> wlc::Main<WlShm>;
     fn get_xdg_surface(&self, surface: &wlc::Main<WlSurface>)
         -> wlc::Main<xdg_surface::XdgSurface>;
@@ -63,6 +78,7 @@ pub trait Handle {
     fn invalidate_rect(&self, rect: kurbo::Rect);
     fn remove_text_field(&self, token: TextFieldToken);
     fn set_focused_text_field(&self, active_field: Option<TextFieldToken>);
+    fn set_input_region(&self, region: Option<Region>);
     fn get_idle_handle(&self) -> idle::Handle;
     fn get_scale(&self) -> Scale;
     fn run_idle(&self);
@@ -131,6 +147,13 @@ impl Compositor for CompositorHandle {
         match self.inner.upgrade() {
             None => panic!("unable to acquire underlying compositor to create a surface"),
             Some(c) => c.create_surface(),
+        }
+    }
+
+    fn create_region(&self) -> wlc::Main<WlRegion> {
+        match self.inner.upgrade() {
+            None => panic!("unable to acquire underlying compositor to create a region"),
+            Some(c) => c.create_region(),
         }
     }
 

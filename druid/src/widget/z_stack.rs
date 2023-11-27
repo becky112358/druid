@@ -1,3 +1,19 @@
+// Copyright 2022 The Druid Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! A ZStack widget.
+
 use crate::{
     BoxConstraints, Data, Env, Event, EventCtx, InternalEvent, LayoutCtx, LifeCycle, LifeCycleCtx,
     PaintCtx, Point, Rect, Size, UnitPoint, UpdateCtx, Vec2, Widget, WidgetExt, WidgetPod,
@@ -72,7 +88,7 @@ impl<T: Data> ZStack<T> {
     /// Builder-style method to add a new child to the Z-Stack.
     ///
     /// The child is added directly above the base layer, is positioned in the center and has no
-    /// size constrains.
+    /// size constraints.
     pub fn with_centered_child(self, child: impl Widget<T> + 'static) -> Self {
         self.with_aligned_child(child, UnitPoint::CENTER)
     }
@@ -80,7 +96,7 @@ impl<T: Data> ZStack<T> {
     /// Builder-style method to add a new child to the Z-Stack.
     ///
     /// The child is added directly above the base layer, uses the given alignment and has no
-    /// size constrains.
+    /// size constraints.
     pub fn with_aligned_child(self, child: impl Widget<T> + 'static, alignment: UnitPoint) -> Self {
         self.with_child(
             child,

@@ -396,6 +396,10 @@ impl WindowBuilder {
         // Ignored
     }
 
+    pub fn set_always_on_top(&self, _always_on_top: bool) {
+        // Ignored
+    }
+
     pub fn set_window_state(&self, _state: window::WindowState) {
         // Ignored
     }
@@ -509,6 +513,14 @@ impl WindowHandle {
         warn!("WindowHandle::set_position unimplemented for web");
     }
 
+    pub fn set_input_region(&self, _region: Option<Region>) {
+        warn!("WindowHandle::set_input_region unimplemented for web");
+    }
+
+    pub fn set_always_on_top(&self, _always_on_top: bool) {
+        warn!("WindowHandle::set_always_on_top unimplemented for web");
+    }
+
     pub fn get_position(&self) -> Point {
         warn!("WindowHandle::get_position unimplemented for web.");
         Point::new(0.0, 0.0)
@@ -543,6 +555,10 @@ impl WindowHandle {
 
     pub fn close(&self) {
         // TODO
+    }
+
+    pub fn hide(&self) {
+        warn!("hide unimplemented for web");
     }
 
     pub fn bring_to_front_and_focus(&self) {
@@ -601,7 +617,6 @@ impl WindowHandle {
     }
 
     pub fn request_timer(&self, deadline: Instant) -> TimerToken {
-        use std::convert::TryFrom;
         let interval = deadline.duration_since(Instant::now()).as_millis();
         let interval = match i32::try_from(interval) {
             Ok(iv) => iv,
