@@ -36,10 +36,11 @@ use crate::{
 /// A list widget for a variable-size collection of items.
 pub struct List<T> {
     closure: Box<dyn Fn() -> Box<dyn Widget<T>>>,
-    children: Vec<WidgetPod<T, Box<dyn Widget<T>>>>,
+    children: Vec<(WidgetPod<T, Box<dyn Widget<T>>>, bool)>,
     axis: Axis,
     spacing: KeyOrValue<f64>,
     old_bc: BoxConstraints,
+    drag_drop: bool,
 }
 
 impl<T: Data> List<T> {
@@ -52,6 +53,7 @@ impl<T: Data> List<T> {
             axis: Axis::Vertical,
             spacing: KeyOrValue::Concrete(0.),
             old_bc: BoxConstraints::tight(Size::ZERO),
+            drag_drop: false,
         }
     }
 
@@ -73,6 +75,12 @@ impl<T: Data> List<T> {
         self
     }
 
+    /// Enable or disable the option to rearrange list members by dragging and dropping
+    pub fn with_drag_drop(mut self, drag_drop: bool) -> Self {
+        self.drag_drop = drag_drop;
+        self
+    }
+
     /// When the widget is created or the data changes, create or remove children as needed
     ///
     /// Returns `true` if children were added or removed.
@@ -83,7 +91,7 @@ impl<T: Data> List<T> {
             Ordering::Less => data.for_each(|_, i| {
                 if i >= len {
                     let child = WidgetPod::new((self.closure)());
-                    self.children.push(child);
+                    self.children.push((child, false));
                 }
             }),
             Ordering::Equal => (),
@@ -348,9 +356,69 @@ impl<C: Data, T: ListIter<C>> Widget<T> for List<C> {
         let mut children = self.children.iter_mut();
         data.for_each_mut(|child_data, _| {
             if let Some(child) = children.next() {
-                child.event(ctx, event, child_data, env);
+                child.0.event(ctx, event, child_data, env);
             }
         });
+
+        if self.drag_drop {
+            for (index_this, child_this) in self.children.iter_mut().enumerate() {
+                match event {
+                    Event::MouseDown(_) => {
+                        if child_this.0.is_hot() {
+                            child_this.1 = true;
+                            println!("Set child to selected");
+                            break;
+                        }
+                    }
+                    Event::MouseUp(_) => {
+                        child_this.1 = false;
+                        println!("Released child");
+                    }
+                    Event::MouseMove(mouse_event) if mouse_event.buttons.is_empty() => {
+                        child_this.1 = false;
+                        println!("Released child");
+                    }
+                    Event::MouseMove(mouse_event) => {
+                        if child_this.1 {
+                            println!("Checking child movement");
+                            let mut index_tox = None;
+                            for (index_other, child_other) in self.children.iter().enumerate() {
+                                let rect_other = child_other.0.layout_rect();
+                                if mouse_event.pos.y < rect_other.center().y {
+                                    index_tox = Some(index_other);
+                                    break;
+                                }
+                                if index_other == self.children.len() - 1 {
+                                    if mouse_event.pos.y > rect_other.center().y {
+                                        index_tox = Some(index_other + 1);
+                                        break;
+                                    }
+                                }
+                            }
+                            println!("Moving from {index_this} to {index_tox:?}");
+                            if let Some(index_to) = index_tox {
+                                if index_to == index_this {
+                                } else if index_to < index_this {
+                                    let x = self.children.remove(index_this);
+                                    self.children.insert(index_to, x);
+                                    ctx.children_changed();
+                                } else {
+                                    let x = self.children.remove(index_this);
+                                    self.children.insert(index_to - 1, x);
+                                    ctx.children_changed();
+                                }
+                            }
+
+                            break;
+                        }
+                    },
+                    _ => {
+                        break;
+                    },
+                }
+            }
+        }
+
     }
 
     #[instrument(name = "List", level = "trace", skip(self, ctx, event, data, env))]
@@ -364,7 +432,7 @@ impl<C: Data, T: ListIter<C>> Widget<T> for List<C> {
         let mut children = self.children.iter_mut();
         data.for_each(|child_data, _| {
             if let Some(child) = children.next() {
-                child.lifecycle(ctx, event, child_data, env);
+                child.0.lifecycle(ctx, event, child_data, env);
             }
         });
     }
@@ -377,7 +445,7 @@ impl<C: Data, T: ListIter<C>> Widget<T> for List<C> {
         let mut children = self.children.iter_mut();
         data.for_each(|child_data, _| {
             if let Some(child) = children.next() {
-                child.update(ctx, child_data, env);
+                child.0.update(ctx, child_data, env);
             }
         });
 
@@ -411,15 +479,15 @@ impl<C: Data, T: ListIter<C>> Widget<T> for List<C> {
                 }
             };
 
-            let child_size = if bc_changed || child.layout_requested() {
-                child.layout(ctx, &child_bc, child_data, env)
+            let child_size = if bc_changed || child.0.layout_requested() {
+                child.0.layout(ctx, &child_bc, child_data, env)
             } else {
-                child.layout_rect().size()
+                child.0.layout_rect().size()
             };
 
             let child_pos: Point = axis.pack(major_pos, 0.).into();
-            child.set_origin(ctx, child_pos);
-            paint_rect = paint_rect.union(child.paint_rect());
+            child.0.set_origin(ctx, child_pos);
+            paint_rect = paint_rect.union(child.0.paint_rect());
             minor = minor.max(axis.minor(child_size));
             major_pos += axis.major(child_size) + spacing;
         });
@@ -439,7 +507,7 @@ impl<C: Data, T: ListIter<C>> Widget<T> for List<C> {
         let mut children = self.children.iter_mut();
         data.for_each(|child_data, _| {
             if let Some(child) = children.next() {
-                child.paint(ctx, child_data, env);
+                child.0.paint(ctx, child_data, env);
             }
         });
     }
@@ -449,7 +517,7 @@ impl<C: Data, T: ListIter<C>> Widget<T> for List<C> {
         let mut children_state = Vec::with_capacity(data.data_len());
         data.for_each(|child_data, _| {
             if let Some(child) = children.next() {
-                children_state.push(child.widget().debug_state(child_data));
+                children_state.push(child.0.widget().debug_state(child_data));
             }
         });
 
